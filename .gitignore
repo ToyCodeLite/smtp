@@ -1,0 +1,58 @@
+# 编译输出
+*.o
+*.obj
+*.exe
+*.out
+*.dll
+*.so
+*.dylib
+
+# 忽略所有以 .log 结尾的文件
+*.log
+
+# 忽略所有以 .swp 结尾的文件
+*.swp
+
+
+# 依赖关系
+*.d
+*.dep
+
+# 工程/IDE特定的文件和文件夹（例如Visual Studio等）
+obj/
+Debug/
+Release/
+.vscode/
+.idea/
+
+# 忽略编译器生成的文件
+*.i
+*.s
+
+# 忽略 VS Code 工作区设置
+/.vscode/settings.json
+
+# MacOS上的一些隐藏文件
+.DS_Store
+
+# 编辑器备份文件
+*~
+.#*
+
+
+# 忽略编译生成的文件或目录
+/build/
+/dist/
+/node_modules/
+bower_components/
+
+# 忽略环境配置文件
+.env
+.env.local
+.env.*.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+
+
