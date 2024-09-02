@@ -11,9 +11,15 @@
 #include <unistd.h>
 #include <getopt.h>
 #include <string.h>
+#include <errno.h>
 
 #include "smtp.h"
 
+#ifdef _WIN32
+#include "os/windows.c"
+#else
+#include "os/linux.c"
+#endif
 
 //返回一个 char *arr[], size为返回数组的长度
 char **explode(char sep, const char *str, int *size)
@@ -80,6 +86,7 @@ void help_info()
     "    -d    --domain           smtp server address[smtp.163.com]\n"
     "    -u    --user             username:Sender Email\n"
     "    -p    --password         \n"
+    "    -P    --port             smtp server port[25]\n"
     "    -t    --to               Receiving Email list\n"
     "    -c    --cc               Carbon Copy Email list\n"
     "    -s    --subject          subject\n"
@@ -125,6 +132,7 @@ void get_option(int argc, char **argv, struct smtp* sm)
         {
             {"help"        , 0, 0, 'h'},  //0代表没有参数
             {"domain"      , 1, 0, 'd'},
+            {"port"        , 1, 0, 'P'},
             //{"from"        , 1, 0, 'f'},
             {"user"        , 1, 0, 'u'},
             {"password"    , 1, 0, 'p'},
@@ -137,7 +145,7 @@ void get_option(int argc, char **argv, struct smtp* sm)
         };
         int c;
  
-        c = getopt_long(argc, argv, "h:d:u:p:t:c:s:f:b:m",long_options, &option_index);  //注意这里的冒号，有冒号就需要加参数值，没有冒号就不用加参数值
+        c = getopt_long(argc, argv, "h:d:u:p:P:t:c:s:f:b:m",long_options, &option_index);  //注意这里的冒号，有冒号就需要加参数值，没有冒号就不用加参数值
         if (c == -1)
                 break;
  
@@ -161,6 +169,15 @@ void get_option(int argc, char **argv, struct smtp* sm)
                 sm->password = optarg;
                 break;
  
+            case 'P':
+                // 将 optarg 转换为 int 类型
+                sm->port = strtol(optarg, NULL, 10);
+                if (errno == ERANGE || sm->port <= 0 || sm->port > 65535) {
+                    fprintf(stderr, "[Error] Invalid port number.\n");
+                    exit(1);
+                }
+                break;
+            
             case 't':
             {
                 int to_len;
@@ -290,6 +307,7 @@ int main(int argc,char** argv)
 {
     struct smtp sm = {};
     sm.domain = "smtp.163.com";
+    sm.port = 25;
     sm.cc = NULL;
     // sm.cc_len = NULL;
     
@@ -310,7 +328,7 @@ int main(int argc,char** argv)
     printf("\n\n\n----------------------------------\n");
     get_option(argc , argv, &sm);
     
-    smtp_send(sm.domain,25,sm.user_name,sm.password,sm.subject,sm.content,sm.to,sm.to_len, sm.cc, sm.cc_len);
+    smtp_send(&sm);
     
     printf("\n\n\n----------------end------------------\n");
     

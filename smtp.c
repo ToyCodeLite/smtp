@@ -4,51 +4,32 @@
  * 
  */
 
-#include <arpa/inet.h>
-#include <netinet/in.h>
-#include <netdb.h>
-#include <sys/socket.h>
-// #include <winsock.h>
-
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include <unistd.h>
+// #include <unistd.h>
 #include <strings.h>
 #include<math.h>
+
+
+#ifdef _WIN32
+#include <tchar.h>  // For Windows-specific functions
+#include <winsock2.h>
+#else
+#include <arpa/inet.h>
+#include <netdb.h>
+#include <unistd.h> // For Unix-specific functions
+#include <netinet/in.h>
+#include <sys/socket.h>
+#endif
 
 #include "smtp.h"
 #include "lib/base64.h"
 
 
-/**
- * 返回的错误码
- */
-enum SMTP_ERROR
-{
-    // success
-    SMTP_ERROR_OK,
-
-    // create socket fail!
-    SMTP_ERROR_SOCKET,
-
-    // connect socket fail
-    SMTP_ERROR_CONNECT,
-
-    // can not find domain
-    SMTP_ERROR_DOMAIN,
-
-    // server error
-    SMTP_ERROR_READ,
-
-    SMTP_ERROR_WRITE,
-
-    // server status error
-    SMTP_ERROR_SERVER_STATUS
-};
-
+#define BUFFER_SIZE 128
 
 
 /**
@@ -94,24 +75,11 @@ char *strrpc(char *str,char *oldstr,char *newstr){
 
 
 /**
- * @enum smtp 状态
- */
-enum SMTP_STATUS
-{
-    SMTP_STATUS_NULL,     //!< SMTP_STATUS_NULL
-    SMTP_STATUS_EHLO,     //!< SMTP_STATUS_EHLO
-    SMTP_STATUS_AUTH,     //!< SMTP_STATUS_AUTH
-    SMTP_STATUS_SEND,     //!< SMTP_STATUS_SEND
-    SMTP_STATUS_QUIT,     //!< SMTP_STATUS_QUIT
-    SMTP_STATUS_MAX       //!< SMTP_STATUS_MAX
-};
-
-/**
  *  读取smtp服务器响应并简单解析出响应状态和响应参数
  * @param sm    smtp指针
  * @return 读取正常返回0，否则返回正数表示错误原因
  */
-static int smtp_read(struct smtp* sm)
+int smtp_read(struct smtp* sm)
 {
     for(;;)
     {
@@ -196,7 +164,7 @@ static char* explode(struct smtp* sm)
     return old;
 }
 
-static int hello(struct smtp* sm)
+int hello(struct smtp* sm)
 {
     // 发送HELO命令
     char buffer[256];
@@ -213,7 +181,7 @@ static int hello(struct smtp* sm)
     return 0;
 }
 
-static int auth(struct smtp* sm)
+int auth(struct smtp* sm)
 {
     // 发送AUTH命令,第一次接到的数据应该是base64编码后的Username，如果不是直接返回
     // 然后第二次应该是base64后的Password
@@ -232,7 +200,7 @@ static int auth(struct smtp* sm)
     buffer[size] = 0;
     if(strcasecmp(buffer,"username:")) return SMTP_ERROR_SERVER_STATUS;
     
-    char* username = base64_encode(sm->user_name);
+    unsigned char* username = base64_encode(sm->user_name);
     size = strlen(username);
     // strcat(buffer, p2);
     strcpy(buffer, username);
@@ -257,7 +225,7 @@ static int auth(struct smtp* sm)
     
     // if(strcasecmp(buffer,"password:")) return SMTP_ERROR_SERVER_STATUS;
     if(strcasecmp(buffer,"Password:")) return SMTP_ERROR_SERVER_STATUS;
-    char* psw = base64_encode(sm->password);
+    unsigned char* psw = base64_encode(sm->password);
     
     // email password
     strcpy(buffer, psw);
@@ -281,28 +249,47 @@ static int auth(struct smtp* sm)
  * @param buffer
  * @return 返回 buffer
  */
-static char* smtp_time(char* buffer)
-{
-    time_t t2;
-    time(&t2);
+static char* smtp_time(char* buffer) {
+    time_t now;
+    struct tm tm_info;
+    char time_string[100];
+    char timezone[28];
+    int offset_minutes;
 
-    struct tm t;
-    localtime_r(&t2,&t);
-    // localtime_s(&t2,&t);
-    
-    static char* week[] = {"Sun" , "Mon" , "Tue" , "Wed" , "Thu" , "Fri" , "Sat"};
-    static char* month[] = {"Jan" , "Feb" , "Mar" , "Apr" , "May" , "Jun" , "Jul" , "Aug" , "Sep" , "Oct" , "Nov" , "Dec"};
-    // C      Date: Wed, 30 Jan 2019 05:48:24 --84199186
-    // C      Date: Wed, 30 Jan 2019 22:45:26 +0800 (CST)
-    sprintf(buffer,"%s, %02d %s %04d %02d:%02d:%02d %s%02d00 (CST)",
-    // Linux
-    week[t.tm_wday],t.tm_mday,month[t.tm_mon], t.tm_year + 1900,t.tm_hour,t.tm_min,t.tm_sec,t.tm_gmtoff >= 0? "+":"-",abs(t.tm_gmtoff / 3600));  
-    // TODO: Windows  
-    // week[t.tm_wday],t.tm_mday,month[t.tm_mon], t.tm_year + 1900,t.tm_hour,t.tm_min,t.tm_sec,t.__tm_gmtoff >= 0? "+":"-",abs(t.__tm_gmtoff / 3600));  // C99
+    // 获取当前时间
+    time(&now);
+
+#ifdef _WIN32
+    // Windows平台上使用 localtime_s 和 gmtime_s
+    localtime_s(&tm_info, &now);
+    struct tm gm_tm;
+    time_t gm_time = now;
+    gmtime_s(&gm_tm, &gm_time);
+#else
+    // Unix平台上使用 localtime_r 和 gmtime_r
+    localtime_r(&now, &tm_info);
+    struct tm gm_tm;
+    time_t gm_time = now;
+    gmtime_r(&gm_time, &gm_tm);
+#endif
+
+    // 格式化日期和时间
+    strftime(time_string, sizeof(time_string), "%a, %d %b %Y %H:%M:%S", &tm_info);
+
+    // 计算时区偏移（单位：分钟）
+    offset_minutes = (int)difftime(now, mktime(&gm_tm)) / 60;
+
+    // 将偏移量格式化为时区字符串
+    snprintf(timezone, sizeof(timezone), "%+03d%02d", offset_minutes / 60, abs(offset_minutes) % 60);
+
+    // 将格式化后的时间和时区信息拷贝到 buffer 中
+    snprintf(buffer, BUFFER_SIZE, "%s %s", time_string, timezone);
+    // snprintf(buffer, sizeof(buffer), "%s %s", time_string, timezone);
+
     return buffer;
 }
 
-static int send_mail(struct smtp* sm)
+int send_mail(struct smtp* sm)
 {
     // MAIL FROM
     char buffer[256];
@@ -357,13 +344,14 @@ static int send_mail(struct smtp* sm)
     // char mime_version[] = "Mime-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\n";
     char mime_version[] = "Mime-Version: 1.0\r\nContent-Type: text/html; charset=utf-8\r\n";
     
-    pos += sprintf(&header[pos], mime_version);
+    // pos += sprintf(&header[pos], mime_version);
+    pos += snprintf(&header[pos], sizeof(header) - pos, "%s", mime_version);
     
     // Content-Transfer-Encoding: base64
     pos += sprintf(&header[pos],"Content-Transfer-Encoding: base64\r\n");
     pos += sprintf(&header[pos],"Message-ID: <%ld.%s>\r\n",time(NULL),sm->user_name);
     
-    char date[50];
+    char date[128];
     pos += sprintf(&header[pos],"Date: %s\r\n\r\n",smtp_time(date));
     free(from);
     
@@ -376,7 +364,7 @@ static int send_mail(struct smtp* sm)
     return 0;
 }
 
-static int quit(struct smtp* sm)
+int quit(struct smtp* sm)
 {
     // if(smtp_write(sm->socket,"QUIT \r\n",strlen("QUIT \r\n"))) return SMTP_ERROR_WRITE;
     if(smtp_write(sm->socket,"QUIT \r\n")) return SMTP_ERROR_WRITE;
@@ -387,72 +375,4 @@ static int quit(struct smtp* sm)
     return 0;
 }
 
-typedef int (*SMTP_FUN)(struct smtp*);
-static const SMTP_FUN smtp_fun[SMTP_STATUS_MAX] = {NULL,hello,auth,send_mail,quit};
-
-int smtp_send(const char* domain,int port,const char* user_name,const char* password,
-              const char* subject,const char* content,const char** to,int to_len,const char** cc, int cc_len)
-{
-    struct hostent* host = gethostbyname(domain);
-    if(!host)
-    {
-        printf("domain can not find！\n");
-        return SMTP_ERROR_DOMAIN;
-    }
-
-    if(host->h_addrtype != AF_INET)
-    {
-        // Linux 
-        // if(host->h_addrtype == AF_INET6) printf("ipv6 is not support!\n");
-        // Windows
-        if(host->h_addrtype == AF_INET) printf("ipv6 is not support!\n");
-        else printf("address type is not support %d\n ",host->h_addrtype);
-        return SMTP_ERROR_DOMAIN;
-    }
-
-    int sock_fd = socket(AF_INET,SOCK_STREAM,0);
-    if(-1 == sock_fd)
-    {
-        printf("can not create socket!\n");
-        return SMTP_ERROR_SOCKET;
-    }
-
-    // 连接到服务器
-    struct sockaddr_in local;
-    local.sin_family = AF_INET;
-    local.sin_port = htons(port);
-    local.sin_addr = *(struct in_addr*)host->h_addr_list[0];
-    memset(local.sin_zero,0,sizeof(local.sin_zero));
-
-    if(-1 == connect(sock_fd,(struct sockaddr*)&local,sizeof(local)))
-    {
-        printf("can not connect socket!\n");
-        return SMTP_ERROR_CONNECT;
-    }
-
-    printf("connect ok ,ip address %s \n",inet_ntoa(local.sin_addr));
-    
-    struct smtp sm = {.domain=domain,.user_name=user_name,.password=password,.subject=subject,
-                      .content=base64_encode(content),.status=SMTP_STATUS_EHLO,.socket=sock_fd,.to=to,
-                      .to_len=to_len,.cc=cc,.cc_len=cc_len};
-
-    // free(sm.content);
-    // 这里应该是服务器欢迎信息，如果状态不是220，直接返回
-    if(smtp_read(&sm) || strcmp(sm.cmd,"220")) return SMTP_ERROR_READ;
-
-    while(sm.status != SMTP_STATUS_NULL)
-    {
-        int error = smtp_fun[sm.status](&sm);
-        if(error)
-        {
-            printf("error = %d\n",error);
-            return error;
-        }
-    }
-
-    close(sock_fd);
-
-    return 0;
-}
-
-
+const SMTP_FUN smtp_fun[SMTP_STATUS_MAX] = {NULL, hello, auth, send_mail, quit}; 
