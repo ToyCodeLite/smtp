@@ -34,13 +34,20 @@ smtp
 git clone https://github.com/ToyCodeLite/smtp.git
  ```
 
-2. 编译：
+2. 切换到代码目录  
 
 ```bash
-# 切换到代码目录
 cd ./smtp
+```
 
-# 编译  
+3. (optional) 修改makefile文件(仅Windows平台下编译需要修改)：
+
+> 当前makefile编译Windows文件是基于交叉编译写的，makefile配置的是x86_64-w64-mingw32-gcc编译器
+> 如果在Windows下使用的是mingw-32编译的话,需要修改makefile文件，将`GCC = x86_64-w64-mingw32-gcc`改为`GCC = mingw32-gcc`或者`GCC = gcc`
+
+4. 编译：
+
+```bash
 make
 ```
 

@@ -14,13 +14,14 @@
 #include<math.h>
 
 
-#ifdef _WIN32
-#include <tchar.h>  // For Windows-specific functions
+#ifdef _WIN32   // For Windows-specific functions
+#include <tchar.h>  
 #include <winsock2.h>
-#else
+#define EWOULDBLOCK WSAEWOULDBLOCK
+#else           // For Unix-specific functions
 #include <arpa/inet.h>
 #include <netdb.h>
-#include <unistd.h> // For Unix-specific functions
+#include <unistd.h> 
 #include <netinet/in.h>
 #include <sys/socket.h>
 #endif
@@ -243,7 +244,7 @@ int auth(struct smtp* sm)
 }
 
 /**
- * 生成smtp格式的时间字符串：Wed, 30 Jan 2019 22:45:26 +0800 (CST)
+ * 生成smtp格式的时间字符串：Wed, 30 Jan 2019 22:45:26 +0800
  *        这里直接返回在堆栈上的缓冲区，意味着只能立刻使用，一旦堆栈有变
  *        动就不能在使用了。
  * @param buffer
@@ -252,6 +253,7 @@ int auth(struct smtp* sm)
 static char* smtp_time(char* buffer) {
     time_t now;
     struct tm tm_info;
+    struct tm gm_tm;
     char time_string[100];
     char timezone[28];
     int offset_minutes;
@@ -259,32 +261,21 @@ static char* smtp_time(char* buffer) {
     // 获取当前时间
     time(&now);
 
-#ifdef _WIN32
-    // Windows平台上使用 localtime_s 和 gmtime_s
-    localtime_s(&tm_info, &now);
-    struct tm gm_tm;
-    time_t gm_time = now;
-    gmtime_s(&gm_tm, &gm_time);
-#else
-    // Unix平台上使用 localtime_r 和 gmtime_r
-    localtime_r(&now, &tm_info);
-    struct tm gm_tm;
-    time_t gm_time = now;
-    gmtime_r(&gm_time, &gm_tm);
-#endif
+    // 使用 localtime 和 gmtime 获取本地时间和 GMT 时间
+    tm_info = *localtime(&now);
+    gm_tm = *gmtime(&now);
 
     // 格式化日期和时间
     strftime(time_string, sizeof(time_string), "%a, %d %b %Y %H:%M:%S", &tm_info);
 
     // 计算时区偏移（单位：分钟）
-    offset_minutes = (int)difftime(now, mktime(&gm_tm)) / 60;
+    offset_minutes = (int)difftime(mktime(&tm_info), mktime(&gm_tm)) / 60;
 
     // 将偏移量格式化为时区字符串
     snprintf(timezone, sizeof(timezone), "%+03d%02d", offset_minutes / 60, abs(offset_minutes) % 60);
 
     // 将格式化后的时间和时区信息拷贝到 buffer 中
     snprintf(buffer, BUFFER_SIZE, "%s %s", time_string, timezone);
-    // snprintf(buffer, sizeof(buffer), "%s %s", time_string, timezone);
 
     return buffer;
 }
