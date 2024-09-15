@@ -1,69 +1,76 @@
-# smtp项目  
+# smtp client  
 
-[toc]
+* [中文版](./README_CN.md)
 
-## smtp 项目介绍  
+## smtp client introduction  
 
-SMTP 是一个基于 C 语言实现的邮件发送项目，实现了以命令行的方式发送邮件。只实现了最基础的功能。仅供学习C语言或者smtp协议使用。
-密送和附件功能待实现。
+It is a simple email sending program implemented in C language. It only implements the basic functions. It is only for learning C language or the smtp protocol.  
 
-## smtp 代码结构  
+## Overview  
+
+### Features  
+
+* Sending Emails from the Command Line
+* Supports Both Linux and Windows Platforms
+
+### files tree
 
 ```sh
 smtp
 ├── lib
-│   ├── base64.c  # base64编码实现文件
-│   └── base64.h  # base64编码头文件
-├── main.c        # main函数
-├── makefile      # makefile文件
+│   ├── base64.c  # Base64 encoding and decoding implementation file
+│   └── base64.h  # Base64 header file
+├── main.c        # Main function
+├── makefile 
 ├── os
-│   ├── linux.c   # linux下实现文件
-│   └── windows.c # windows下实现文件
+│   ├── linux.c   # Implementation file for Linux
+│   └── windows.c # Implementation file for Windows
 ├── README.md
-├── smtp          # Linux下编译生成的可执行文件
-├── smtp.c        # smtp.c文件，包含了smtp.h中声明的函数实现
-├── smtp.exe      # windows下编译生成的可执行文件
-└── smtp.h        # smtp.h文件，包含了smtp.c中用到的函数声明
+├── smtp          # Executable file generated after compilation on Linux
+├── smtp.c        # smtp.c file, contains the implementation of functions declared in smtp.h
+├── smtp.exe      # Executable file generated after compilation on Windows
+└── smtp.h        # smtp.h file, contains declarations of functions used in smtp.c
 ```
 
-## smtp 源码编译  
+## smtp compilation  
 
-1. 下载源码到任意目录:  
+1. Download the source code to any directory:  
 
  ```bash
 git clone https://github.com/ToyCodeLite/smtp.git
  ```
 
-2. 切换到代码目录  
+2. enter the source code directory  
 
 ```bash
 cd ./smtp
 ```
+`
 
-3. (optional) 修改makefile文件(仅Windows平台下编译需要修改)：
+3. (Optional) Modify the Makefile (only necessary for compilation on Windows):
 
-> 当前makefile编译Windows文件是基于交叉编译写的，makefile配置的是x86_64-w64-mingw32-gcc编译器
-> 如果在Windows下使用的是mingw-32编译的话,需要修改makefile文件，将`GCC = x86_64-w64-mingw32-gcc`改为`GCC = mingw32-gcc`或者`GCC = gcc`
+The current Makefile is set up for cross-compiling to Windows, configured to use the `x86_64-w64-mingw32-gcc` compiler.
+If you are using MinGW on Windows directly, you need to modify the Makefile by changing `GCC = x86_64-w64-mingw32-gcc` to `GCC = mingw32-gcc` or `GCC = gcc`.  
 
-4. 编译：
+4. make build：
 
 ```bash
 make
 ```
 
-(optional) Linux下进行交叉编译：
+(Optional) Cross Compile for Windows on Linux
 
 ```bash
-sudo apt-get install mingw-w64  # 安装mingw-w64
-export OS=Windows_NT            # 临时设置环境变量OS的值为Windows_NT(仅跨平台的交叉编译需设置环境变量)
+sudo apt-get install mingw-w64  # install mingw-w64 compiler package on linux
+export OS=Windows_NT            # set the environment variable `OS` to `Windows_NT` (needed only for cross-platform compilation).
 make
 ```
 
-成功后在当前目录下生成可执行文件，例如：smtp.exe(windows)或smtp(Linux)
+After a successful build, an executable file will be generated in the current directory, such as `smtp.exe` (for Windows) or `smtp` (for Linux).
 
-## smtp 使用说明  
+## SMTP Usage Instructions  
 
-1. 查看帮助信息：
+1. Usage Info：
 
 ```bash
 # display help info and exit
@@ -93,28 +100,28 @@ Usage: ./smtp [Option]
     -f    --attachment       filname list
 ```
 
-Note:
-主送/抄送: 多个收件人地址之间用逗号隔开。
--p(小写): 邮箱服务器密码(一般都是授权码)，注意：邮箱需要开启SMTP服务，才能发送邮件。
--P(大写): smtp服务器端口，默认为25
--d/--domain: 不输入默认为smtp.163.com
+Note:  
+> TO/CC: Separate multiple recipient addresses with `,`(commas).  
+> -p (lowercase): Email password (usually an authorization code). Note: SMTP service must be enabled on the email account to send emails.  
+> -P (uppercase): SMTP server port, default is `25`.  
+> -d/--domain: Default is `smtp.163.com` if not specifie  
 
-2. 使用命令行发送邮件：
+2. send an email using the command line：
 
 2.1. Linux:
 
 ```bash
-# 短参数形式
+# Short Parameter 
 ./smtp -d smtp.163.com -P 25 -u xxxxxx@163.com -p password -t xxxxxx@qq.com -s subject_linux_demo -b content_body -m
-# 长参数形式
+# Long Parameter 
 ./smtp --domain smtp.163.com --port 25 --user xxxxxx@163.com --password password --to xxxxxx@qq.com --subject subject_linux_demo --content content_body --show
 ```
 
 2.2. Windows:
 
 ```bash
-# 短参数形式
+# Short Parameter 
 smtp.exe -d smtp.163.com -P 25 -u xxxxxx@163.com -p password -t xxxxxx@qq.com -s subject_windows_demo -b content_body -m
-# 长参数形式
+# Long Parameter
 smtp.exe --domain smtp.163.com --port 25 --user xxxxxx@163.com --password password --to xxxxxx@qq.com --subject subject_windows_demo --content content_body --show
 ```
