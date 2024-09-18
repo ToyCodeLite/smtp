@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  push:
+    tags:
+      - 'v*' # 触发条件：当推送的tag以v开头时
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest # 使用最新版本的Ubuntu来运行这个任务
+    steps:
+      - uses: actions/checkout@v4 # 检出代码库到工作目录
+      - name: Install build dependencies
+        run: sudo apt-get update && sudo apt-get install -y build-essential # 安装构建所需的依赖
+      - name: Compile for Linux
+        run: make # 执行make命令来编译Linux版本的二进制文件
+      - name: Create tar.gz archive for Linux
+        run: tar -czvf smtp-linux-binary.tar.gz smtp # 将生成的可执行文件smtp打包成.tar.gz格式
+      - name: Archive Linux artifacts
+        uses: actions/upload-artifact@v4 # 使用actions/upload-artifact上传构建生成的文件
+        with:
+          name: smtp-linux-binary # 存档名称
+          path: smtp-linux-binary.tar.gz # 打包后的文件路径
+
+  build-windows:
+    runs-on: windows-latest # 使用最新版本的Windows来运行这个任务
+    steps:
+      - uses: actions/checkout@v4 # 检出代码库到工作目录
+      - name: Install build tools
+        run: choco install mingw --version=8.1.0 # 安装MinGW作为编译工具
+      - name: Compile for Windows
+        run: mingw32-make # 执行mingw32-make命令来编译Windows版本的二进制文件
+      - name: Create zip archive for Windows
+        run: powershell -Command "Compress-Archive -Path smtp.exe -DestinationPath smtp-windows-binary.zip" # 将生成的可执行文件smtp.exe打包成.zip格式
+      - name: Archive Windows artifacts
+        uses: actions/upload-artifact@v4 # 使用actions/upload-artifact上传构建生成的文件
+        with:
+          name: smtp-windows-binary # 存档名称
+          path: smtp-windows-binary.zip # 打包后的文件路径
+
+  release:
+    runs-on: ubuntu-latest # 这个任务在Ubuntu环境中运行
+    needs: [build-linux, build-windows] # 这个任务依赖于build-linux和build-windows任务的完成
+    env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # GitHub自动生成的token用于认证API请求
+          # ACTIONS_STEP_DEBUG: true
+    steps:
+      - uses: actions/checkout@v4 # 检出代码库到工作目录
+      - name: Download Linux artifacts
+        uses: actions/download-artifact@v4 # 使用actions/download-artifact下载之前上传的Linux二进制文件
+        with:
+          name: smtp-linux-binary # 从存档中下载的名称
+      - name: Download Windows artifacts
+        uses: actions/download-artifact@v4 # 使用actions/download-artifact下载之前上传的Windows二进制文件
+        with:
+          name: smtp-windows-binary # 从存档中下载的名称
+      - name: Create GitHub Release
+        id: create_release
+        uses: actions/create-release@v1.1.4 # 创建一个新的GitHub Release
+        with:
+          tag_name: ${{ github.ref_name }} # 使用当前的Git tag作为Release的tag
+          release_name: Release ${{ github.ref_name }} # Release的标题
+          body: 'Automate build and release based on tag `${{ github.ref_name }}`' # Release的描述内容
+
+      - name: Upload Linux binary to release
+        uses: actions/upload-release-asset@latest # 上传Linux二进制文件到Release中
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }} # 获取上传URL
+          asset_path: ./smtp-linux-binary.tar.gz # 本地Linux二进制文件的路径
+          asset_name: smtp-linux-binary.tar.gz # 上传到Release中的文件名称
+          asset_content_type: application/gzip # 文件类型为gzip
+      - name: Upload Windows binary to release
+        uses: actions/upload-release-asset@latest # 上传Windows二进制文件到Release中
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }} # 获取上传URL
+          asset_path: ./smtp-windows-binary.zip # 本地Windows二进制文件的路径
+          asset_name: smtp-windows-binary.zip # 上传到Release中的文件名称
+          asset_content_type: application/zip # 文件类型为zip
